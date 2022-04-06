@@ -44,6 +44,17 @@ void parse_arguments(char **args, char *input) {
     }
 }
 
+// freopen(args[1], "r", stdin);
+// TODO: Lag funksjon som redirecter stdin stdout
+// - Sjekke etter piler <, >:
+//   - sette stdin stdout med freopen
+//   - execute hver kommando
+//   - stdin, stdout kan bare settes én gang
+//   - hvis redirect ikke eksister, kan kommandoen executes vanlig
+// - Tokenize etter <, > først? Deretter tokenize argumenter?
+// - Les hele kommando fra høyre til venstre?
+
+
 int main() {
     while(1) {
         char *input = malloc(sizeof(char) * 1024);
@@ -72,7 +83,7 @@ int main() {
 
             // Child process
             if (pid == 0) {
-                int rc = execv(args[0], args);
+                int rc = execvp(args[0], args);
                 if (rc < 0) printf("ERROR: %s\n", strerror(errno));
             }
             // Parent process
