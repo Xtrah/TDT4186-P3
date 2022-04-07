@@ -9,20 +9,21 @@
 #include <fcntl.h>
 
 int exit_flag = 0;
+int background_flag = 0;
 
 /**
  * @brief Redirects stdin to a file
  * 
  * @param filename Name of file to redirect to
  */
-void redirectIn(char *filename) {
+int redirectIn(char *filename) {
     int inFd = open(filename, O_RDONLY);
     if (inFd < 0) {
-        printf("ERROR: Could not open file %s\n", filename);
-        return;
+        fprintf(stderr, "ERROR: %s: '%s'\n", strerror(errno), filename);
+        return -1;
     }
     dup2(inFd, STDIN_FILENO);
-    close(inFd);
+    return close(inFd);
 }
 
 /**
@@ -30,14 +31,14 @@ void redirectIn(char *filename) {
  * 
  * @param filename Name of file to redirect to
  */
-void redirectOut(char *filename) {
+int redirectOut(char *filename) {
     int outFd = open(filename, O_WRONLY | O_TRUNC | O_CREAT, S_IRUSR | S_IWUSR);
     if (outFd < 0) {
-        printf("ERROR: Could not open file %s\n", filename);
-        return;
+        fprintf(stderr, "ERROR: %s: '%s'\n", strerror(errno), filename);
+        return -1;
     }
     dup2(outFd, STDOUT_FILENO);
-    close(outFd);
+    return close(outFd);
 }
 
 /**
@@ -74,6 +75,8 @@ void prompt(char *input) {
  * @param input String input to be parsed
  */
 void parse_arguments(char **args, char *input) {
+    // TODO: Format input with spaces around special characters.
+
     int i = 0;
     char *token = strtok(input, " \t"); // Split input by space or tab
     
@@ -81,12 +84,20 @@ void parse_arguments(char **args, char *input) {
         // Redirect stdin
         if (strcmp(token, "<") == 0) {
             char *tok = strtok(NULL, " \t");
-            redirectIn(tok);
+            int rc = redirectIn(tok);
+            if (rc < 0) break;
         }
         // Redirect stdout
         else if (strcmp(token, ">") == 0) {
             char *tok = strtok(NULL, " \t");
-            redirectOut(tok);
+            int rc = redirectOut(tok);
+            if (rc < 0) break;
+        }
+        // Sets task to background if & is provided
+        else if (strcmp(token, "&") == 0) {
+            printf("---------&&&&& var her!----------\n");
+            background_flag = 1;
+            break; // No more args allowed after &
         }
         else {
             args[i] = token; // Put token in args array
@@ -94,6 +105,7 @@ void parse_arguments(char **args, char *input) {
         }
         token = strtok(NULL, " \t"); 
     }
+
     args[i] = NULL;
 }
 
@@ -121,8 +133,16 @@ void execute(char **args) {
     }
     // Parent process
     else if (pid > 0) {
-        int status;
-        waitpid(pid, &status, 0);
+        int status = 0;
+
+        // Check if process should be run in background
+        if (!background_flag) {  
+            waitpid(pid, &status, 0);
+        }
+        else {
+            printf("-------Background--------\n");
+            background_flag = 0;
+        }
 
         // Reset stdin and stdout
         redirectIn("/dev/tty");
