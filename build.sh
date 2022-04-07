@@ -1,4 +1,4 @@
-rm -f flush
+rm -f $1
 clear
-gcc -o flush flush.c
-./flush
+gcc -Wall -g -o $1 $1.c
+./$1

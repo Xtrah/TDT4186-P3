@@ -10,8 +10,12 @@
 
 int exit_flag = 0;
 
+/**
+ * @brief Redirects stdin to a file
+ * 
+ * @param filename Name of file to redirect to
+ */
 void redirectIn(char *filename) {
-    // Redirect stdin to first argument after < 
     int inFd = open(filename, O_RDONLY);
     if (inFd < 0) {
         printf("ERROR: Could not open file %s\n", filename);
@@ -21,8 +25,12 @@ void redirectIn(char *filename) {
     close(inFd);
 }
 
+/**
+ * @brief Redirects stdout to a file
+ * 
+ * @param filename Name of file to redirect to
+ */
 void redirectOut(char *filename) {
-    // Redirect stdout to first argument after > 
     int outFd = open(filename, O_WRONLY | O_TRUNC | O_CREAT, S_IRUSR | S_IWUSR);
     if (outFd < 0) {
         printf("ERROR: Could not open file %s\n", filename);
@@ -32,13 +40,17 @@ void redirectOut(char *filename) {
     close(outFd);
 }
 
-// Write prompt to screen and return input
+/**
+ * @brief Write prompt to screen and get input from user
+ * 
+ * @param input Return string containing user input
+ */
 void prompt(char *input) {
     size_t path_size = 100;
     char* path = malloc(sizeof(char) * path_size); // Allocate memory for path
     getcwd(path, path_size); // Get working directory
     printf("%s: ", path); // Print working directory
-    free(path); // Free memory
+    free(path);
     
     // Takes input from command line
     char buffer[1024];
@@ -55,47 +67,41 @@ void prompt(char *input) {
     }
 }
 
-// Parse input and puts args in array separated by space or tab
+/**
+ * @brief Parse input and puts args in array separated by space or tab
+ * 
+ * @param args Return list of parsed arguments
+ * @param input String input to be parsed
+ */
 void parse_arguments(char **args, char *input) {
     int i = 0;
-    char *token[256];
+    char *token = strtok(input, " \t"); // Split input by space or tab
     
-    token[i] = strtok(input, " \t"); // Split input by space or tab
-    while (token[i] != NULL) {
+    while (token) {
         // Redirect stdin
-        if (strcmp(token[i], "<") == 0) {
-            //if (token[i+1]) {
-                char *tok = strtok(NULL, " \t");
-                printf("%s\n", tok);
-                redirectIn(tok);
-                i++;
-            // }
-            // else {
-            //     printf("ERROR: No such file (redirectIn)\n");
-            //     exit(EXIT_FAILURE);
-            // }
+        if (strcmp(token, "<") == 0) {
+            char *tok = strtok(NULL, " \t");
+            redirectIn(tok);
         }
         // Redirect stdout
-        else if (strcmp(token[i], ">") == 0) {
-            //if (token[i+1]) {
-                char *tok = strtok(NULL, " \t");
-                printf("%s\n", tok);
-                redirectOut(tok);
-                i++;
-            // }
-            // else {
-            //     printf("ERROR: No such file (redirectOut)\n");
-            //     exit(EXIT_FAILURE);
-            // }
+        else if (strcmp(token, ">") == 0) {
+            char *tok = strtok(NULL, " \t");
+            redirectOut(tok);
         }
         else {
-            args[i] = token[i]; // Put token in args array
+            args[i] = token; // Put token in args array
             i++;
-            token[i] = strtok(NULL, " \t"); 
         }
+        token = strtok(NULL, " \t"); 
     }
+    args[i] = NULL;
 }
 
+/**
+ * @brief Executes provided arguments in child process
+ * 
+ * @param args Arguments to be executed
+ */
 void execute(char **args) {
     // Checks for change directory
     if (strcmp(args[0], "cd") == 0) {
@@ -116,38 +122,24 @@ void execute(char **args) {
     // Parent process
     else if (pid > 0) {
         int status;
-        pid_t child = waitpid(pid, &status, 0);
+        waitpid(pid, &status, 0);
+
+        // Reset stdin and stdout
+        redirectIn("/dev/tty");
+        redirectOut("/dev/tty");
         printf("Exit status [%s] = %d\n", args[0], status);
     }
-
-    // Reset stdin and stdout
-    redirectIn("/dev/tty");
-    redirectOut("/dev/tty");
 }
-
-// head -1 < /tmp/ex.txt > /tmp/foo.txt
-
-// freopen(args[1], "r", stdin);
-// TODO: Lag funksjon som redirecter stdin stdout
-// - Sjekke etter piler <, >:
-//   - sette stdin stdout med freopen
-//   - execute hver kommando
-//   - stdin, stdout kan bare settes én gang
-//   - hvis redirect ikke eksister, kan kommandoen executes vanlig
-// - Tokenize etter <, > først? Deretter tokenize argumenter?
-// - Les hele kommando fra høyre til venstre?
-
 
 int main() {
     while(!exit_flag) {
         char *input = malloc(sizeof(char) * 1024);
         prompt(input);
-        printf("Input: %s\n", input);
 
         char **args = malloc(sizeof(char) * 1024);
         parse_arguments(args, input);
 
-        // Ignores if first argument (command) is empty
+        // Ignores if first argument (i.e. command) is empty
         if (args[0] == NULL) {
             continue;
         }
