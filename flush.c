@@ -8,8 +8,12 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+#include "linkedlist.h"
+
 int exit_flag = 0;
 int background_flag = 0;
+
+List *bg_processes;
 
 /**
  * @brief Redirects stdin to a file
@@ -61,11 +65,11 @@ void prompt(char *input) {
         strcpy(input, buffer);
     }
     // Exits if fgets fails
-    else if (strcmp(buffer, "\0") == 0) {
-        // TODO: 3.1 NOT COMPLETED: Check for EOF instead
-        exit_flag = 1;
-        printf("EOF\n");
-    }
+    // else if (strcmp(buffer, "\0") == 0) {
+    //     // TODO: 3.1 NOT COMPLETED: Check for EOF instead
+    //     exit_flag = 1;
+    //     printf("EOF\n");
+    // }
 }
 
 /**
@@ -95,7 +99,6 @@ void parse_arguments(char **args, char *input) {
         }
         // Sets task to background if & is provided
         else if (strcmp(token, "&") == 0) {
-            printf("---------&&&&& var her!----------\n");
             background_flag = 1;
             break; // No more args allowed after &
         }
@@ -109,19 +112,39 @@ void parse_arguments(char **args, char *input) {
     args[i] = NULL;
 }
 
+void print_exit_status(char *command, int status) {
+    printf("Exit status [%s] = %d\n", command, status);
+}
+
 /**
  * @brief Executes provided arguments in child process
  * 
  * @param args Arguments to be executed
  */
 void execute(char **args) {
-    // Checks for change directory
+    // Ignores if first argument (i.e. command) is empty
+    if (args[0] == NULL) {
+        return;
+    }
+
+    // Change directory command
     if (strcmp(args[0], "cd") == 0) {
         if (args[2] == NULL) { // Only two arguments allowed
             if (chdir(args[1]) < 0) printf("ERROR: %s\n", strerror(errno));
             return;
         }
-        printf("Too many arguments!\n");
+        printf("ERROR: Too many arguments!\n");
+    }
+
+    // Exit command
+    if (strcmp(args[0], "exit") == 0) {
+        exit(EXIT_SUCCESS);
+    }
+
+    if (strcmp(args[0], "jobs") == 0) {
+        printf("---- CURRENT JOBS: ----\n");
+        display(bg_processes);
+        return;
     }
 
     pid_t pid = fork();
@@ -133,41 +156,60 @@ void execute(char **args) {
     }
     // Parent process
     else if (pid > 0) {
+        // Reset stdin and stdout
+        redirectIn("/dev/tty");
+        redirectOut("/dev/tty");
+
         int status = 0;
+
+
+        char command[1024];
+        strcpy(command, args[0]);
+        int i = 1;
+        while (args[i] != NULL) {
+            strcat(command, " ");
+            strcat(command, args[i]);
+            i++;
+        }
 
         // Check if process should be run in background
         if (!background_flag) {  
             waitpid(pid, &status, 0);
+            print_exit_status(command, status);
         }
         else {
-            printf("-------Background--------\n");
+            add(pid, command, bg_processes);
             background_flag = 0;
         }
-
-        // Reset stdin and stdout
-        redirectIn("/dev/tty");
-        redirectOut("/dev/tty");
-        printf("Exit status [%s] = %d\n", args[0], status);
     }
 }
 
 int main() {
+    bg_processes = makelist();
     while(!exit_flag) {
+        pid_t pid;
+        do {
+            int status;
+            pid = waitpid(-1, &status, WNOHANG);
+
+            if (pid > 0) {
+                Node *node = findnode(bg_processes, pid);
+                print_exit_status(getcommand(node), status);
+                delete(pid, bg_processes);
+            }
+        } while(pid > 0);
+
         char *input = malloc(sizeof(char) * 1024);
         prompt(input);
 
         char **args = malloc(sizeof(char) * 1024);
         parse_arguments(args, input);
 
-        // Ignores if first argument (i.e. command) is empty
-        if (args[0] == NULL) {
-            continue;
-        }
-
         execute(args);
 
         free(args);
         free(input);
     }
+    free(bg_processes);
     exit(EXIT_SUCCESS);
 }
