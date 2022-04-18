@@ -94,32 +94,7 @@ void delete(int pid, List * list){
     previous = current;             
     current = current->next;        
   }                                 
-}                                   
-
-// void reverse(List * list){
-//   Node * reversed = NULL;
-//   Node * current = list->head;
-//   Node * temp = NULL;
-//   while(current != NULL){
-//     temp = current;
-//     current = current->next;
-//     temp->next = reversed;
-//     reversed = temp;
-//   }
-//   list->head = reversed;
-// }
-// //Reversing the entire list by changing the direction of link from forward to backward using two pointers
-// void reverse_using_two_pointers(List *list){
-//     Node *previous = NULL;
-//     while (list->head)
-//     {
-//         Node *next_node = list->head->next; //points to second node in list
-//         list->head->next = previous;//at initial making head as NULL
-//         previous = list->head;//changing the nextpointer direction as to point backward node 
-//         list->head = next_node; //moving forward by next node
-//     }
-//     list->head=previous;
-// }
+}
 
 void destroy(List * list){
   Node * current = list->head;

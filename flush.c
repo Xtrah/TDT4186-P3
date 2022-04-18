@@ -242,6 +242,8 @@ void parse_arguments(char **args, char *input) {
 int main() {
     bg_processes = makelist();
     while(!exit_flag) {
+
+        // Removes zombies from earlier commands
         pid_t pid;
         do {
             int status;
