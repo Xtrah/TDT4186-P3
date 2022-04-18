@@ -50,7 +50,7 @@ int redirectOut(char *filename) {
  * 
  * @param input Return string containing user input
  */
-void prompt(char *input) {
+int prompt(char *input) {
     size_t path_size = 100;
     char* path = malloc(sizeof(char) * path_size); // Allocate memory for path
     getcwd(path, path_size); // Get working directory
@@ -59,17 +59,18 @@ void prompt(char *input) {
     
     // Takes input from command line
     char buffer[1024];
-    
     if (buffer == fgets(buffer, sizeof(buffer), stdin)) { 
         buffer[strcspn(buffer, "\r\n")] = 0; // Remove newline from input
         strcpy(input, buffer);
     }
-    // Exits if fgets fails
-    // else if (strcmp(buffer, "\0") == 0) {
-    //     // TODO: 3.1 NOT COMPLETED: Check for EOF instead
-    //     exit_flag = 1;
-    //     printf("EOF\n");
-    // }
+
+    // Checks for Ctrl-D
+    if (feof(stdin)) {
+        exit_flag = 1;
+        return -1;
+    }
+
+    return 0;
 }
 
 /**
@@ -200,7 +201,8 @@ int main() {
         } while(pid > 0);
 
         char *input = malloc(sizeof(char) * 1024);
-        prompt(input);
+        int rc = prompt(input);
+        if (rc < 0) break;
 
         char **args = malloc(sizeof(char) * 1024);
         parse_arguments(args, input);
