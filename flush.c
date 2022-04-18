@@ -20,7 +20,7 @@ List *bg_processes;
  * 
  * @param filename Name of file to redirect to
  */
-int redirectIn(char *filename) {
+int redirect_in(char *filename) {
     int inFd = open(filename, O_RDONLY);
     if (inFd < 0) {
         fprintf(stderr, "ERROR: %s: '%s'\n", strerror(errno), filename);
@@ -35,7 +35,7 @@ int redirectIn(char *filename) {
  * 
  * @param filename Name of file to redirect to
  */
-int redirectOut(char *filename) {
+int redirect_out(char *filename) {
     int outFd = open(filename, O_WRONLY | O_TRUNC | O_CREAT, S_IRUSR | S_IWUSR);
     if (outFd < 0) {
         fprintf(stderr, "ERROR: %s: '%s'\n", strerror(errno), filename);
@@ -50,7 +50,7 @@ int redirectOut(char *filename) {
  * 
  * @param input Return string containing user input
  */
-int prompt(char *input) {
+void prompt(char *input) {
     size_t path_size = 100;
     char* path = malloc(sizeof(char) * path_size); // Allocate memory for path
     getcwd(path, path_size); // Get working directory
@@ -67,10 +67,38 @@ int prompt(char *input) {
     // Checks for Ctrl-D
     if (feof(stdin)) {
         exit_flag = 1;
-        return -1;
     }
+}
 
-    return 0;
+/**
+ * @brief Adds whitespace around special characters in input
+ * 
+ * @param input Raw input
+ * @param output Returned formatted output
+ */
+void format_input(char *input, char *output) {
+    output[0] = input[0];
+    output[1] = '\0';
+    
+    int i = 1;
+    while (input[i] != '\0') {
+        char newChar[2];
+        newChar[0] = input[i];
+        newChar[1] = '\0';
+
+        if (strcmp(newChar, "<") == 0 || 
+            strcmp(newChar, ">") == 0 ||
+            strcmp(newChar, "&") == 0)
+        {
+            strcat(output, " "); // Whitespace BEFORE special character
+            strcat(output, newChar); // Special character
+            strcat(output, " "); // Whitespace AFTER special character
+        }
+        else {
+            strcat(output, newChar);
+        }
+        i++;
+    }
 }
 
 /**
@@ -80,22 +108,23 @@ int prompt(char *input) {
  * @param input String input to be parsed
  */
 void parse_arguments(char **args, char *input) {
-    // TODO: Format input with spaces around special characters.
+    char *formatted_input = malloc(sizeof(char) * 1024);
+    format_input(input, formatted_input);
 
     int i = 0;
-    char *token = strtok(input, " \t"); // Split input by space or tab
+    char *token = strtok(formatted_input, " \t"); // Split input by space or tab
     
     while (token) {
         // Redirect stdin
         if (strcmp(token, "<") == 0) {
             char *tok = strtok(NULL, " \t");
-            int rc = redirectIn(tok);
+            int rc = redirect_in(tok);
             if (rc < 0) break;
         }
         // Redirect stdout
         else if (strcmp(token, ">") == 0) {
             char *tok = strtok(NULL, " \t");
-            int rc = redirectOut(tok);
+            int rc = redirect_out(tok);
             if (rc < 0) break;
         }
         // Sets task to background if & is provided
@@ -111,6 +140,7 @@ void parse_arguments(char **args, char *input) {
     }
 
     args[i] = NULL;
+    free(formatted_input);
 }
 
 void print_exit_status(char *command, int status) {
@@ -158,8 +188,8 @@ void execute(char **args) {
     // Parent process
     else if (pid > 0) {
         // Reset stdin and stdout
-        redirectIn("/dev/tty");
-        redirectOut("/dev/tty");
+        redirect_in("/dev/tty");
+        redirect_out("/dev/tty");
 
         int status = 0;
 
@@ -201,8 +231,7 @@ int main() {
         } while(pid > 0);
 
         char *input = malloc(sizeof(char) * 1024);
-        int rc = prompt(input);
-        if (rc < 0) break;
+        prompt(input);
 
         char **args = malloc(sizeof(char) * 1024);
         parse_arguments(args, input);
@@ -213,5 +242,5 @@ int main() {
         free(input);
     }
     free(bg_processes);
-    exit(EXIT_SUCCESS);
+    return 0;
 }
