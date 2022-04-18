@@ -15,6 +15,10 @@ int background_flag = 0;
 
 List *bg_processes;
 
+void print_exit_status(char *command, int status) {
+    printf("Exit status [%s] = %d\n", command, status);
+}
+
 /**
  * @brief Redirects stdin to a file
  * 
@@ -68,83 +72,6 @@ void prompt(char *input) {
     if (feof(stdin)) {
         exit_flag = 1;
     }
-}
-
-/**
- * @brief Adds whitespace around special characters in input
- * 
- * @param input Raw input
- * @param output Returned formatted output
- */
-void format_input(char *input, char *output) {
-    output[0] = input[0];
-    output[1] = '\0';
-    
-    int i = 1;
-    while (input[i] != '\0') {
-        char newChar[2];
-        newChar[0] = input[i];
-        newChar[1] = '\0';
-
-        if (strcmp(newChar, "<") == 0 || 
-            strcmp(newChar, ">") == 0 ||
-            strcmp(newChar, "&") == 0)
-        {
-            strcat(output, " "); // Whitespace BEFORE special character
-            strcat(output, newChar); // Special character
-            strcat(output, " "); // Whitespace AFTER special character
-        }
-        else {
-            strcat(output, newChar);
-        }
-        i++;
-    }
-}
-
-/**
- * @brief Parse input and puts args in array separated by space or tab
- * 
- * @param args Return list of parsed arguments
- * @param input String input to be parsed
- */
-void parse_arguments(char **args, char *input) {
-    char *formatted_input = malloc(sizeof(char) * 1024);
-    format_input(input, formatted_input);
-
-    int i = 0;
-    char *token = strtok(formatted_input, " \t"); // Split input by space or tab
-    
-    while (token) {
-        // Redirect stdin
-        if (strcmp(token, "<") == 0) {
-            char *tok = strtok(NULL, " \t");
-            int rc = redirect_in(tok);
-            if (rc < 0) break;
-        }
-        // Redirect stdout
-        else if (strcmp(token, ">") == 0) {
-            char *tok = strtok(NULL, " \t");
-            int rc = redirect_out(tok);
-            if (rc < 0) break;
-        }
-        // Sets task to background if & is provided
-        else if (strcmp(token, "&") == 0) {
-            background_flag = 1;
-            break; // No more args allowed after &
-        }
-        else {
-            args[i] = token; // Put token in args array
-            i++;
-        }
-        token = strtok(NULL, " \t"); 
-    }
-
-    args[i] = NULL;
-    free(formatted_input);
-}
-
-void print_exit_status(char *command, int status) {
-    printf("Exit status [%s] = %d\n", command, status);
 }
 
 /**
@@ -213,6 +140,103 @@ void execute(char **args) {
             background_flag = 0;
         }
     }
+}
+
+/**
+ * @brief Sets up a pipe from the current command to the next command in the chain
+ * 
+ * @param args Current arguments to be executed
+ */
+void create_pipe(char **args) {
+    int fd[2];
+    pipe(fd);
+
+    dup2(fd[1], STDOUT_FILENO);
+    close(fd[1]);
+
+    execute(args);
+
+    dup2(fd[0], STDIN_FILENO);
+    close(fd[0]);
+}
+
+/**
+ * @brief Adds whitespace around special characters in input
+ * 
+ * @param input Raw input
+ * @param output Returned formatted output
+ */
+void format_input(char *input, char *output) {
+    output[0] = input[0];
+    output[1] = '\0';
+    
+    int i = 1;
+    while (input[i] != '\0') {
+        char newChar[2];
+        newChar[0] = input[i];
+        newChar[1] = '\0';
+
+        if (strcmp(newChar, "<") == 0 || 
+            strcmp(newChar, ">") == 0 ||
+            strcmp(newChar, "&") == 0)
+        {
+            strcat(output, " "); // Whitespace BEFORE special character
+            strcat(output, newChar); // Special character
+            strcat(output, " "); // Whitespace AFTER special character
+        }
+        else {
+            strcat(output, newChar);
+        }
+        i++;
+    }
+}
+
+/**
+ * @brief Parse input and puts args in array separated by space or tab
+ * 
+ * @param args Return list of parsed arguments
+ * @param input String input to be parsed
+ */
+void parse_arguments(char **args, char *input) {
+    char *formatted_input = malloc(sizeof(char) * 1024);
+    format_input(input, formatted_input);
+
+    int i = 0;
+    char *token = strtok(formatted_input, " \t"); // Split input by space or tab
+    
+    while (token) {
+        // Redirect stdin
+        if (strcmp(token, "<") == 0) {
+            char *tok = strtok(NULL, " \t");
+            int rc = redirect_in(tok);
+            if (rc < 0) break;
+        }
+        // Redirect stdout
+        else if (strcmp(token, ">") == 0) {
+            char *tok = strtok(NULL, " \t");
+            int rc = redirect_out(tok);
+            if (rc < 0) break;
+        }
+        // Redirects IO if pipe
+        else if (strcmp(token, "|") == 0) {
+            args[i] = NULL;
+            create_pipe(args);
+            i = 0;
+        }
+        // Sets task to background if & is provided
+        else if (strcmp(token, "&") == 0) {
+            background_flag = 1;
+            break; // No more args allowed after &
+        }
+        else {
+            args[i] = token; // Put token in args array
+            i++;
+        }
+        token = strtok(NULL, " \t"); 
+    }
+
+    args[i] = NULL;
+    free(formatted_input);
 }
 
 int main() {
